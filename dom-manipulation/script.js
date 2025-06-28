@@ -177,3 +177,93 @@ function importFromJsonFile(event) {
 createAddQuoteForm();
 populateCategories();
 filterQuotes();
+
+// Fake server data simulation
+const serverAPI = {
+  fetchQuotes: async () => {
+    // Simulate server-side data (usually this would be fetch from real endpoint)
+    return new Promise(resolve => {
+      setTimeout(() => {
+        resolve([
+          { text: "This came from the server.", category: "Server" },
+          { text: "Another server-side quote.", category: "Wisdom" }
+        ]);
+      }, 1000);
+    });
+  },
+  postQuote: async (quote) => {
+    // Simulate POST to server
+    return new Promise(resolve => {
+      setTimeout(() => {
+        console.log("Posted to server:", quote);
+        resolve({ status: "success" });
+      }, 500);
+    });
+  }
+};
+
+// UI element for sync feedback
+const syncNotice = document.getElementById("syncNotice");
+
+// Compare and merge server quotes
+async function fetchFromServer() {
+  const serverQuotes = await serverAPI.fetchQuotes();
+  let added = 0;
+  let conflicts = 0;
+
+  serverQuotes.forEach(serverQuote => {
+    const exists = quotes.some(localQuote =>
+      localQuote.text === serverQuote.text && localQuote.category === serverQuote.category
+    );
+
+    if (!exists) {
+      const conflict = quotes.find(localQuote =>
+        localQuote.text === serverQuote.text && localQuote.category !== serverQuote.category
+      );
+
+      if (conflict) {
+        // Server wins strategy
+        quotes = quotes.filter(q => q !== conflict);
+        quotes.push(serverQuote);
+        conflicts++;
+      } else {
+        quotes.push(serverQuote);
+        added++;
+      }
+    }
+  });
+
+  saveQuotes();
+  populateCategories();
+  filterQuotes();
+
+  if (added > 0 || conflicts > 0) {
+    syncNotice.textContent = `🔄 Synced: ${added} new quotes added, ${conflicts} conflicts resolved.`;
+    setTimeout(() => syncNotice.textContent = "", 5000);
+  }
+}
+
+// Post new quote to server (simulate)
+async function postQuoteToServer(quote) {
+  await serverAPI.postQuote(quote);
+}
+
+// Modify add button to sync with server
+document.querySelector("button").addEventListener("click", async () => {
+  const text = document.getElementById("newQuoteText").value.trim();
+  const category = document.getElementById("newQuoteCategory").value.trim();
+  if (!text || !category) return;
+
+  const newQuote = { text, category };
+  quotes.push(newQuote);
+  saveQuotes();
+  populateCategories();
+  filterQuotes();
+  await postQuoteToServer(newQuote);
+});
+
+// Manual sync button
+document.getElementById("syncNowBtn").addEventListener("click", fetchFromServer);
+
+// Periodic sync
+setInterval(fetchFromServer, 30000);
