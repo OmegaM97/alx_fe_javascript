@@ -11,20 +11,18 @@ quoteDisplay.style.padding = "1rem";
 quoteDisplay.style.border = "1px solid #ccc";
 app.appendChild(quoteDisplay);
 
-// Category Filter
 const categoryFilterLabel = document.createElement("label");
-categoryFilterLabel.innerText = "Filter by category: ";
+categoryFilterLabel.textContent = "Filter by category: ";
 const categoryFilter = document.createElement("select");
 categoryFilter.id = "categoryFilter";
-categoryFilter.onchange = filterQuotes;
+categoryFilter.addEventListener("change", filterQuotes);
 app.appendChild(categoryFilterLabel);
 app.appendChild(categoryFilter);
 
-// Show New Quote Button
 const showQuoteBtn = document.createElement("button");
-showQuoteBtn.innerText = "Show Random Quote";
+showQuoteBtn.textContent = "Show Random Quote";
 showQuoteBtn.style.marginLeft = "10px";
-showQuoteBtn.onclick = showRandomQuote;
+showQuoteBtn.addEventListener("click", showRandomQuote);
 app.appendChild(showQuoteBtn);
 
 // --- Load/Save Quotes ---
@@ -48,17 +46,16 @@ function populateCategories() {
 
   const allOpt = document.createElement("option");
   allOpt.value = "All";
-  allOpt.innerText = "All Categories";
+  allOpt.textContent = "All Categories";
   categoryFilter.appendChild(allOpt);
 
   uniqueCats.forEach(cat => {
     const opt = document.createElement("option");
     opt.value = cat;
-    opt.innerText = cat;
+    opt.textContent = cat;
     categoryFilter.appendChild(opt);
   });
 
-  // Restore last filter
   const lastFilter = localStorage.getItem(STORAGE_FILTER);
   if (lastFilter) {
     categoryFilter.value = lastFilter;
@@ -71,25 +68,35 @@ function showRandomQuote() {
   const pool = selected === "All" ? quotes : quotes.filter(q => q.category === selected);
 
   if (pool.length === 0) {
-    quoteDisplay.innerText = "No quotes found for this category.";
+    quoteDisplay.textContent = "No quotes found for this category.";
     return;
   }
 
   const random = Math.floor(Math.random() * pool.length);
-  quoteDisplay.innerText = pool[random].text;
+  const quote = pool[random].text;
+  quoteDisplay.textContent = quote;
 
-  sessionStorage.setItem("lastQuote", pool[random].text);
+  sessionStorage.setItem("lastQuote", quote);
   localStorage.setItem(STORAGE_FILTER, selected);
 }
 
-// --- Filter Quotes (show all that match) ---
+// --- Filter Quotes (display all matches) ---
 function filterQuotes() {
   const selected = categoryFilter.value;
   const pool = selected === "All" ? quotes : quotes.filter(q => q.category === selected);
 
-  quoteDisplay.innerHTML = pool.length === 0
-    ? "No quotes found in this category."
-    : pool.map(q => `<p>"${q.text}"</p>`).join("");
+  quoteDisplay.textContent = ""; // Clear existing content
+
+  if (pool.length === 0) {
+    quoteDisplay.textContent = "No quotes found in this category.";
+    return;
+  }
+
+  pool.forEach(q => {
+    const p = document.createElement("p");
+    p.textContent = `"${q.text}"`;
+    quoteDisplay.appendChild(p);
+  });
 
   localStorage.setItem(STORAGE_FILTER, selected);
 }
@@ -109,10 +116,10 @@ function createAddQuoteForm() {
   categoryInput.style.marginLeft = "5px";
 
   const addBtn = document.createElement("button");
-  addBtn.innerText = "Add Quote";
+  addBtn.textContent = "Add Quote";
   addBtn.style.marginLeft = "5px";
 
-  addBtn.onclick = () => {
+  addBtn.addEventListener("click", () => {
     const text = quoteInput.value.trim();
     const category = categoryInput.value.trim();
     if (!text || !category) return alert("Both fields are required!");
@@ -120,10 +127,11 @@ function createAddQuoteForm() {
     quotes.push({ text, category });
     saveQuotes();
     populateCategories();
+    filterQuotes(); // Refresh view
     quoteInput.value = "";
     categoryInput.value = "";
     alert("Quote added!");
-  };
+  });
 
   form.appendChild(quoteInput);
   form.appendChild(categoryInput);
@@ -156,6 +164,7 @@ function importFromJsonFile(event) {
       quotes.push(...imported);
       saveQuotes();
       populateCategories();
+      filterQuotes();
       alert("Quotes imported!");
     } catch (err) {
       alert("Failed to import: " + err.message);
