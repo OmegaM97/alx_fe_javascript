@@ -25,7 +25,6 @@ showQuoteBtn.style.marginLeft = "10px";
 showQuoteBtn.addEventListener("click", showRandomQuote);
 app.appendChild(showQuoteBtn);
 
-// Sync UI elements
 const syncNotice = document.getElementById("syncNotice");
 
 // --- Load and Save Quotes ---
@@ -135,8 +134,12 @@ function createAddQuoteForm() {
     quoteInput.value = "";
     categoryInput.value = "";
 
-    await postQuoteToServer(newQuote);
-    alert("Quote added and synced to server!");
+    try {
+      await postQuoteToServer(newQuote);
+      alert("Quote added and synced to server!");
+    } catch {
+      alert("Quote added locally, but failed to sync with server.");
+    }
   });
 
   form.appendChild(quoteInput);
@@ -179,76 +182,85 @@ function importFromJsonFile(event) {
   reader.readAsText(file);
 }
 
-// --- Simulated server API ---
-const serverAPI = {
-  fetchQuotes: async () => {
-    // Simulate a delay and return some "server" quotes
-    return new Promise(resolve => {
-      setTimeout(() => {
-        resolve([
-          { text: "This came from the server.", category: "Server" },
-          { text: "Another server-side quote.", category: "Wisdom" }
-        ]);
-      }, 1000);
-    });
-  },
-  postQuote: async (quote) => {
-    // Simulate server POST
-    return new Promise(resolve => {
-      setTimeout(() => {
-        console.log("Posted to server:", quote);
-        resolve({ status: "success" });
-      }, 500);
-    });
-  }
-};
+// --- Server API using JSONPlaceholder ---
+const SERVER_URL = "https://jsonplaceholder.typicode.com/posts";
 
-// Sync notification UI
-const syncNowBtn = document.getElementById("syncNowBtn");
-
+// Fetch quotes from server and map them to {text, category}
 async function fetchQuotesFromServer() {
-  const serverQuotes = await serverAPI.fetchQuotes();
-  let added = 0;
-  let conflicts = 0;
+  try {
+    const response = await fetch(SERVER_URL + "?_limit=10"); // limit to 10 for demo
+    const data = await response.json();
 
-  serverQuotes.forEach(serverQuote => {
-    const exists = quotes.some(localQuote =>
-      localQuote.text === serverQuote.text && localQuote.category === serverQuote.category
-    );
+    let added = 0;
+    let conflicts = 0;
 
-    if (!exists) {
-      const conflict = quotes.find(localQuote =>
-        localQuote.text === serverQuote.text && localQuote.category !== serverQuote.category
+    // Map server posts to quote format:
+    // Use `title` as `text`, `body` as `category`
+    data.forEach(post => {
+      const serverQuote = { text: post.title, category: post.body || "General" };
+
+      const exists = quotes.some(localQuote =>
+        localQuote.text === serverQuote.text && localQuote.category === serverQuote.category
       );
 
-      if (conflict) {
-        quotes = quotes.filter(q => q !== conflict);
-        quotes.push(serverQuote);
-        conflicts++;
-      } else {
-        quotes.push(serverQuote);
-        added++;
+      if (!exists) {
+        const conflict = quotes.find(localQuote =>
+          localQuote.text === serverQuote.text && localQuote.category !== serverQuote.category
+        );
+
+        if (conflict) {
+          quotes = quotes.filter(q => q !== conflict);
+          quotes.push(serverQuote);
+          conflicts++;
+        } else {
+          quotes.push(serverQuote);
+          added++;
+        }
       }
+    });
+
+    saveQuotes();
+    populateCategories();
+    filterQuotes();
+
+    if (added > 0 || conflicts > 0) {
+      syncNotice.textContent = `🔄 Synced: ${added} added, ${conflicts} conflict(s) resolved.`;
+      setTimeout(() => syncNotice.textContent = "", 4000);
     }
-  });
-
-  saveQuotes();
-  populateCategories();
-  filterQuotes();
-
-  if (added > 0 || conflicts > 0) {
-    syncNotice.textContent = `🔄 Synced: ${added} added, ${conflicts} conflict(s) resolved.`;
-    setTimeout(() => syncNotice.textContent = "", 4000);
+  } catch (err) {
+    console.error("Failed to fetch from server:", err);
+    syncNotice.textContent = "⚠️ Failed to sync with server.";
+    setTimeout(() => (syncNotice.textContent = ""), 4000);
   }
 }
 
-// Post new quote to "server"
+// Post new quote to JSONPlaceholder (this won't actually store but simulates success)
 async function postQuoteToServer(quote) {
-  await serverAPI.postQuote(quote);
+  try {
+    const response = await fetch(SERVER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: quote.text,
+        body: quote.category,
+        userId: 1,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Network response was not ok");
+    }
+
+    const result = await response.json();
+    console.log("Posted to server:", result);
+  } catch (err) {
+    console.error("Failed to post quote to server:", err);
+    throw err;
+  }
 }
 
-// Wire manual sync button
-syncNowBtn.addEventListener("click", fetchQuotesFromServer);
+// Manual sync button
+document.getElementById("syncNowBtn").addEventListener("click", fetchQuotesFromServer);
 
 // Periodic sync every 30 seconds
 setInterval(fetchQuotesFromServer, 30000);
