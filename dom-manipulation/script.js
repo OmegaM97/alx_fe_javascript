@@ -309,9 +309,10 @@ async function syncQuotes() {
     filterQuotes();
 
     if (added > 0 || conflicts > 0) {
-      syncNotice.textContent = `🔄 Synced: ${added} added, ${conflicts} conflicts resolved.`;
+      syncNotice.textContent = "Quotes synced with server!";
       setTimeout(() => { syncNotice.textContent = ""; }, 4000);
     }
+
   } catch (err) {
     console.error("Sync failed:", err);
     syncNotice.textContent = "⚠️ Failed to sync with server.";
