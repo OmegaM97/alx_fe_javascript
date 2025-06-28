@@ -3,7 +3,7 @@ const STORAGE_FILTER = "selectedCategory";
 let quotes = loadQuotes();
 const app = document.getElementById("app");
 
-// --- UI Elements ---
+// UI elements
 const quoteDisplay = document.createElement("div");
 quoteDisplay.id = "quoteDisplay";
 quoteDisplay.style.margin = "1rem 0";
@@ -25,7 +25,10 @@ showQuoteBtn.style.marginLeft = "10px";
 showQuoteBtn.addEventListener("click", showRandomQuote);
 app.appendChild(showQuoteBtn);
 
-// --- Load/Save Quotes ---
+// Sync UI elements
+const syncNotice = document.getElementById("syncNotice");
+
+// --- Load and Save Quotes ---
 function loadQuotes() {
   const data = localStorage.getItem(STORAGE_QUOTES);
   return data ? JSON.parse(data) : [
@@ -80,12 +83,12 @@ function showRandomQuote() {
   localStorage.setItem(STORAGE_FILTER, selected);
 }
 
-// --- Filter Quotes (display all matches) ---
+// --- Filter Quotes (display all matching) ---
 function filterQuotes() {
   const selected = categoryFilter.value;
   const pool = selected === "All" ? quotes : quotes.filter(q => q.category === selected);
 
-  quoteDisplay.textContent = ""; // Clear existing content
+  quoteDisplay.textContent = ""; // clear previous
 
   if (pool.length === 0) {
     quoteDisplay.textContent = "No quotes found in this category.";
@@ -119,18 +122,21 @@ function createAddQuoteForm() {
   addBtn.textContent = "Add Quote";
   addBtn.style.marginLeft = "5px";
 
-  addBtn.addEventListener("click", () => {
+  addBtn.addEventListener("click", async () => {
     const text = quoteInput.value.trim();
     const category = categoryInput.value.trim();
     if (!text || !category) return alert("Both fields are required!");
 
-    quotes.push({ text, category });
+    const newQuote = { text, category };
+    quotes.push(newQuote);
     saveQuotes();
     populateCategories();
-    filterQuotes(); // Refresh view
+    filterQuotes();
     quoteInput.value = "";
     categoryInput.value = "";
-    alert("Quote added!");
+
+    await postQuoteToServer(newQuote);
+    alert("Quote added and synced to server!");
   });
 
   form.appendChild(quoteInput);
@@ -160,7 +166,7 @@ function importFromJsonFile(event) {
   reader.onload = (e) => {
     try {
       const imported = JSON.parse(e.target.result);
-      if (!Array.isArray(imported)) throw new Error("Invalid file format");
+      if (!Array.isArray(imported)) throw new Error("Invalid JSON format");
       quotes.push(...imported);
       saveQuotes();
       populateCategories();
@@ -173,15 +179,10 @@ function importFromJsonFile(event) {
   reader.readAsText(file);
 }
 
-// --- Initialize ---
-createAddQuoteForm();
-populateCategories();
-filterQuotes();
-
-// Fake server data simulation
+// --- Simulated server API ---
 const serverAPI = {
   fetchQuotes: async () => {
-    // Simulate server-side data (usually this would be fetch from real endpoint)
+    // Simulate a delay and return some "server" quotes
     return new Promise(resolve => {
       setTimeout(() => {
         resolve([
@@ -192,7 +193,7 @@ const serverAPI = {
     });
   },
   postQuote: async (quote) => {
-    // Simulate POST to server
+    // Simulate server POST
     return new Promise(resolve => {
       setTimeout(() => {
         console.log("Posted to server:", quote);
@@ -202,11 +203,10 @@ const serverAPI = {
   }
 };
 
-// UI element for sync feedback
-const syncNotice = document.getElementById("syncNotice");
+// Sync notification UI
+const syncNowBtn = document.getElementById("syncNowBtn");
 
-// Compare and merge server quotes
-async function fetchFromServer() {
+async function fetchQuotesFromServer() {
   const serverQuotes = await serverAPI.fetchQuotes();
   let added = 0;
   let conflicts = 0;
@@ -222,7 +222,6 @@ async function fetchFromServer() {
       );
 
       if (conflict) {
-        // Server wins strategy
         quotes = quotes.filter(q => q !== conflict);
         quotes.push(serverQuote);
         conflicts++;
@@ -238,32 +237,23 @@ async function fetchFromServer() {
   filterQuotes();
 
   if (added > 0 || conflicts > 0) {
-    syncNotice.textContent = `🔄 Synced: ${added} new quotes added, ${conflicts} conflicts resolved.`;
-    setTimeout(() => syncNotice.textContent = "", 5000);
+    syncNotice.textContent = `🔄 Synced: ${added} added, ${conflicts} conflict(s) resolved.`;
+    setTimeout(() => syncNotice.textContent = "", 4000);
   }
 }
 
-// Post new quote to server (simulate)
+// Post new quote to "server"
 async function postQuoteToServer(quote) {
   await serverAPI.postQuote(quote);
 }
 
-// Modify add button to sync with server
-document.querySelector("button").addEventListener("click", async () => {
-  const text = document.getElementById("newQuoteText").value.trim();
-  const category = document.getElementById("newQuoteCategory").value.trim();
-  if (!text || !category) return;
+// Wire manual sync button
+syncNowBtn.addEventListener("click", fetchQuotesFromServer);
 
-  const newQuote = { text, category };
-  quotes.push(newQuote);
-  saveQuotes();
-  populateCategories();
-  filterQuotes();
-  await postQuoteToServer(newQuote);
-});
+// Periodic sync every 30 seconds
+setInterval(fetchQuotesFromServer, 30000);
 
-// Manual sync button
-document.getElementById("syncNowBtn").addEventListener("click", fetchFromServer);
-
-// Periodic sync
-setInterval(fetchFromServer, 30000);
+// --- Initialize UI ---
+createAddQuoteForm();
+populateCategories();
+filterQuotes();
